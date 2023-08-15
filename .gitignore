@@ -1,0 +1,5 @@
+AWSsecret.md
+.DS_Store
+data/chinese_top100_artist.csv
+data/japanese_top100_artist.csv
+data/korean_top100_artist.csv
