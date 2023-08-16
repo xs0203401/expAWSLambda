@@ -13,7 +13,6 @@ def get_spark():
     spark = SparkSession.builder.master("local[4]").appName('SparkDelta') \
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-        .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3native.NativeS3FileSystem") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
         .config("spark.jars.packages", 
                 "io.delta:delta-core_2.12:1.1.0,"
@@ -29,20 +28,6 @@ def get_spark():
     return spark
 
 
-# spark = SparkSession.builder\
-#         .master('local')\
-#         .appName("test_intake")\
-#         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-#         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-#         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-#         .config("spark.jars.packags", "org.apache.hadoop:hadoop-aws:3.3.6,com.amazonaws:aws-java-sdk-bundle:1.12.529")\
-#         .getOrCreate()
-
-
-#         # .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")\
-#         # .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.10.2,org.apache.hadoop:hadoop-client:2.10.2")\
-#         # .config("spark.jars.excludes", "com.google.guava:guava")\
-
 
 # # Local Test event
 # import json
@@ -54,9 +39,9 @@ def get_spark():
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
 # Testing uploding using boto3 s3_client
-file_name = 'data/japanese_top100_artist.csv'
+file_name = 'data/korean_top100_artist.csv'
 bucket = 'csv-input-20230814'
-object_name = 'japanese_top100_artist.csv'
+object_name = 'korean_top100_artist.csv'
 
 response = s3_client.upload_file(file_name, bucket, object_name)
 print(response)
