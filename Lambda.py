@@ -1,10 +1,13 @@
 # import findspark; findspark.init()
+import io
+import logging
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import StructType, StructField, IntegerType, StringType, BooleanType
 
 import pandas as pd
 import boto3
-import io
+from botocore.exceptions import ClientError
+
 
 s3_client = boto3.client('s3')
 
@@ -27,6 +30,31 @@ def get_spark():
 
     return spark
 
+def create_bucket(bucket_name, region=None):
+    """Create an S3 bucket in a specified region
+
+    If a region is not specified, the bucket is created in the S3 default
+    region (us-east-1).
+
+    :param bucket_name: Bucket to create
+    :param region: String region to create bucket in, e.g., 'us-west-2'
+    :return: True if bucket created, else False
+    """
+
+    # Create bucket
+    try:
+        if region is None:
+            s3_client = boto3.client('s3')
+            s3_client.create_bucket(Bucket=bucket_name)
+        else:
+            s3_client = boto3.client('s3', region_name=region)
+            location = {'LocationConstraint': region}
+            s3_client.create_bucket(Bucket=bucket_name,
+                                    CreateBucketConfiguration=location)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
 
 
 # # Local Test event
@@ -38,27 +66,27 @@ def get_spark():
 # filePath = './data/chinese_top100_artist.csv'
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
-# Testing uploding using boto3 s3_client
-file_name = 'data/korean_top100_artist.csv'
-bucket = 'csv-input-20230814'
-object_name = 'korean_top100_artist.csv'
+# # Testing uploding using boto3 s3_client
+# file_name = 'data/korean_top100_artist.csv'
+# bucket = 'csv-input-20230814'
+# object_name = 'korean_top100_artist.csv'
 
-response = s3_client.upload_file(file_name, bucket, object_name)
-print(response)
+# response = s3_client.upload_file(file_name, bucket, object_name)
+# print(response)
 
+# s3_client.list_objects(Bucket=bucket)
 
-s3_client.list_objects(Bucket=bucket)
-
-response = s3_client.get_object(Bucket=bucket, Key=object_name)
-csv_content = response['Body'].read().decode('utf-8')
-csv_file = io.StringIO(csv_content)
-df = pd.read_csv(csv_file)
+# response = s3_client.get_object(Bucket=bucket, Key=object_name)
+# csv_content = response['Body'].read().decode('utf-8')
+# csv_file = io.StringIO(csv_content)
+# df = pd.read_csv(csv_file)
 # spark_df = spark.createDataFrame(df)
 
 
-# Testing reading from spark
+# Testing reading from spark from s3
+region = 'us-east-2'
 s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
-s3_file_path = "s3a://csv-input-20230814/biostats.csv"
+# s3_file_path = "s3a://csv-input-20230814/biostats.csv"
 # df = spark.read.csv(s3_file_path, header=True, inferSchema=True)
 
 
