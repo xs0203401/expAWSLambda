@@ -1,4 +1,3 @@
-# import findspark; findspark.init()
 import io
 import random
 import logging
