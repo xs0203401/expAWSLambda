@@ -3,7 +3,7 @@ import random
 import logging
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import StructType, StructField, IntegerType, StringType, BooleanType
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, lit, current_timestamp
 
 import pandas as pd
 import boto3
@@ -70,9 +70,9 @@ def create_bucket(bucket_name, region=None):
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
 # # Testing uploding using boto3 s3_client
-file_name = 'data/korean_top100_artist.csv'
+file_name = 'data/japanese_top100_artist.csv'
 bucket = 'csv-ingest-0821'
-object_name = 'korean_top100_artist-4.csv'
+object_name = 'japanese_top100_artist.csv'
 
 response = s3_client.upload_file(file_name, bucket, object_name)
 print(response)
@@ -88,15 +88,60 @@ print(response)
 
 # Testing reading from spark from s3
 region = 'us-east-2'
+bucket_str = 'csv-ingest-0821'
+key_str = 'korean_top100_artist.csv'
+key_category = key_str.split("_")[0]
+s3_read_path = f"s3a://{bucket_str}/{key_str}"
 # s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
-s3_file_path = "s3a://csv-input-20230814/biostats.csv"
-df = spark.read.csv(s3_file_path, header=True, inferSchema=True)
+# s3_file_path = "s3a://csv-input-20230814/biostats.csv"
+df1 = spark.read.csv(s3_read_path, header=True, inferSchema=True).withColumn("language_category", lit(key_category)).withColumn("ingest_datetime", current_timestamp())
 
+
+with open('/Users/henryliu/Temp00/expAWSLambda/test_event_s3_put.json') as f:
+    event = json.load(f)
+
+bkt = event['Records'][0]['s3']['bucket']
+obj = event['Records'][0]['s3']['object']
+
+res = s3_client.list_buckets()
+target_bucket = res['Buckets'][4]['Name']
 
 while True:
     target_bucket = f"hello-bucket-20230820-{random.randint(10000000, 99999999)}"
     if create_bucket(target_bucket, region=region):
         break
 
-df = df.select([col(col_name).alias(trimmed_name) for col_name, trimmed_name in zip(df.columns, [col_name.strip(' "').replace(' ', '_').replace('(', '_').replace(')','_') for col_name in df.columns])]) # Trimmed column names for "biostats.csv"
-df.write.parquet(f"s3a://{target_bucket}/test_output.parquet")
+# df = df.select([col(col_name).alias(trimmed_name) for col_name, trimmed_name in zip(df.columns, [col_name.strip(' "').replace(' ', '_').replace('(', '_').replace(')','_') for col_name in df.columns])]) # Trimmed column names for "biostats.csv"
+df = df.select([col(col_name) if col_name != '_c0' else col(col_name).alias("row_id") for col_name in df.columns])
+df.write.parquet(f"s3a://{target_bucket}/test_output.parquet", mode="overwrite", compression="snappy")
+
+target_bucket = 'my-table-0821'
+target_file_key = 'output.parquet'
+
+df1 = spark.read.parquet(f"s3a://{target_bucket}/test_output.parquet")
+df1.createTempView('test1')
+df2 = spark.sql('select * from test1')
+df1.count()
+df2.union(df1).distinct().count()
+
+
+df = df.limit(25)
+df1 = df1.exceptAll(df)
+df1.count()
+df2.show()
+
+
+
+# Glue
+glue_client = boto3.client('glue')
+glue_client.start_job_run(
+        JobName = 'myCSVIngest-0821',
+         Arguments = {
+           '--new_bucket_name'  :   json.dumps(bkt),
+           '--new_object_key'   :   json.dumps(obj) } )
+
+
+
+# Test output file
+s3_location = "s3a://my-table-0821/output.parquet/"
+df = spark.read.parquet(s3_location, header=True, inferSchema=True)
