@@ -70,12 +70,12 @@ def create_bucket(bucket_name, region=None):
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
 # # Testing uploding using boto3 s3_client
-# file_name = 'data/korean_top100_artist.csv'
-# bucket = 'csv-input-20230814'
-# object_name = 'korean_top100_artist.csv'
+file_name = 'data/korean_top100_artist.csv'
+bucket = 'csv-ingest-0821'
+object_name = 'korean_top100_artist-4.csv'
 
-# response = s3_client.upload_file(file_name, bucket, object_name)
-# print(response)
+response = s3_client.upload_file(file_name, bucket, object_name)
+print(response)
 
 # s3_client.list_objects(Bucket=bucket)
 

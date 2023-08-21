@@ -1,38 +1,32 @@
 {
-    "Records": [
-      {
-        "eventVersion": "2.0",
-        "eventSource": "aws:s3",
-        "awsRegion": "us-east-1",
-        "eventTime": "1970-01-01T00:00:00.000Z",
-        "eventName": "ObjectCreated:Put",
-        "userIdentity": {
-          "principalId": "EXAMPLE"
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "aws:s3",
+      "awsRegion": "us-east-2",
+      "eventTime": "2023-08-21T09:05:44.419Z",
+      "eventName": "ObjectCreated:Put",
+      "userIdentity": { "principalId": "AWS:AIDAVEH42YKGFSK2552IF" },
+      "requestParameters": { "sourceIPAddress": "68.170.84.48" },
+      "responseElements": {
+        "x-amz-request-id": "12V7Z4WPJQHDQ319",
+        "x-amz-id-2": "5lD9eAXIXgVZKZs9ulNAa1g5+8KkjUI9gQHiO1Xb4vQA3MbZZKAbZnyfFh9rbEQyTLnLPJVwnHh2B6rDgC4wPfzsl/p3nPga5kLGNX1eUPg="
+      },
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "configurationId": "46b5d6e5-d2bc-4340-b778-df1590ea5fa0",
+        "bucket": {
+          "name": "csv-ingest-0821",
+          "ownerIdentity": { "principalId": "A11DRCURI2NNEK" },
+          "arn": "arn:aws:s3:::csv-ingest-0821"
         },
-        "requestParameters": {
-          "sourceIPAddress": "127.0.0.1"
-        },
-        "responseElements": {
-          "x-amz-request-id": "EXAMPLE123456789",
-          "x-amz-id-2": "EXAMPLE123/5678abcdefghijklambdaisawesome/mnopqrstuvwxyzABCDEFGH"
-        },
-        "s3": {
-          "s3SchemaVersion": "1.0",
-          "configurationId": "testConfigRule",
-          "bucket": {
-            "name": "example-bucket",
-            "ownerIdentity": {
-              "principalId": "EXAMPLE"
-            },
-            "arn": "arn:aws:s3:::example-bucket"
-          },
-          "object": {
-            "key": "test%2Fkey",
-            "size": 1024,
-            "eTag": "0123456789abcdef0123456789abcdef",
-            "sequencer": "0A1B2C3D4E5F678901"
-          }
+        "object": {
+          "key": "korean_top100_artist-4.csv",
+          "size": 28804,
+          "eTag": "2c95791801642a23a749a18c4bb25bbc",
+          "sequencer": "0064E328E84BF4DBF0"
         }
       }
-    ]
-  }
+    }
+  ]
+}
