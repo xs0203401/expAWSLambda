@@ -1,8 +1,10 @@
 # import findspark; findspark.init()
 import io
+import random
 import logging
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import StructType, StructField, IntegerType, StringType, BooleanType
+from pyspark.sql.functions import col
 
 import pandas as pd
 import boto3
@@ -29,6 +31,8 @@ def get_spark():
     spark._jsc.hadoopConfiguration().set("fs.AbstractFileSystem.s3a.impl", "org.apache.hadoop.fs.s3a.S3A")
 
     return spark
+
+spark = get_spark()
 
 def create_bucket(bucket_name, region=None):
     """Create an S3 bucket in a specified region
@@ -85,51 +89,15 @@ def create_bucket(bucket_name, region=None):
 
 # Testing reading from spark from s3
 region = 'us-east-2'
-s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
-# s3_file_path = "s3a://csv-input-20230814/biostats.csv"
-# df = spark.read.csv(s3_file_path, header=True, inferSchema=True)
+# s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
+s3_file_path = "s3a://csv-input-20230814/biostats.csv"
+df = spark.read.csv(s3_file_path, header=True, inferSchema=True)
 
 
+while True:
+    target_bucket = f"hello-bucket-20230820-{random.randint(10000000, 99999999)}"
+    if create_bucket(target_bucket, region=region):
+        break
 
-
-# # Auxiliary
-# with open('test_download.csv', 'wb') as f:
-#     s3_client.download_fileobj(bucket, object_name, f)
-
-# ts = ("io.delta:delta-core_2.12:1.1.0,"
-#                 "org.apache.hadoop:hadoop-aws:3.2.2,"
-#                 "com.amazonaws:aws-java-sdk-bundle:1.12.180")
-
-# pandas_schema = {
-#     "Unnamed: 0": "int64",
-#     "artist_name": "object",
-#     "popularity": "int64",
-#     "followers": "int64",
-#     "artist_link": "object",
-#     "genres": "object",
-#     "top_track": "object",
-#     "top_track_album": "object",
-#     "top_track_popularity": "int64",
-#     "top_track_release_date": "object",
-#     "top_track_duration_ms": "int64",
-#     "top_track_explicit": "bool",
-#     "top_track_album_link": "object",
-#     "top_track_link": "object"
-# }
-
-# spark_schema = StructType([
-#     StructField("Unnamed: 0", IntegerType(), True),
-#     StructField("artist_name", StringType(), True),
-#     StructField("popularity", IntegerType(), True),
-#     StructField("followers", IntegerType(), True),
-#     StructField("artist_link", StringType(), True),
-#     StructField("genres", StringType(), True),
-#     StructField("top_track", StringType(), True),
-#     StructField("top_track_album", StringType(), True),
-#     StructField("top_track_popularity", IntegerType(), True),
-#     StructField("top_track_release_date", StringType(), True),
-#     StructField("top_track_duration_ms", IntegerType(), True),
-#     StructField("top_track_explicit", BooleanType(), True),
-#     StructField("top_track_album_link", StringType(), True),
-#     StructField("top_track_link", StringType(), True)
-# ])
+df = df.select([col(col_name).alias(trimmed_name) for col_name, trimmed_name in zip(df.columns, [col_name.strip(' "').replace(' ', '_').replace('(', '_').replace(')','_') for col_name in df.columns])]) # Trimmed column names for "biostats.csv"
+df.write.parquet(f"s3a://{target_bucket}/test_output.parquet")
