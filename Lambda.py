@@ -89,12 +89,13 @@ print(response)
 # Testing reading from spark from s3
 region = 'us-east-2'
 bucket_str = 'csv-ingest-0821'
-key_str = 'korean_top100_artist.csv'
+key_str = 'japanese_top100_artist.csv'
 key_category = key_str.split("_")[0]
 s3_read_path = f"s3a://{bucket_str}/{key_str}"
 # s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
 # s3_file_path = "s3a://csv-input-20230814/biostats.csv"
 df1 = spark.read.csv(s3_read_path, header=True, inferSchema=True).withColumn("language_category", lit(key_category)).withColumn("ingest_datetime", current_timestamp())
+df1 = df1.select([col(col_name) for col_name in df1.columns if col_name != '_c0'])
 
 
 with open('/Users/henryliu/Temp00/expAWSLambda/test_event_s3_put.json') as f:
@@ -144,4 +145,16 @@ glue_client.start_job_run(
 
 # Test output file
 s3_location = "s3a://my-table-0821/output.parquet/"
+s3_location_ro = "s3a://my-table-0821/ReadOnly__output.parquet/"
 df = spark.read.parquet(s3_location, header=True, inferSchema=True)
+
+
+# TEST COPY ReadOnly
+TARGET_BUCKET = 'my-table-0821'
+TARGET_FILE_KEY = 'output.parquet'
+TARGET_READONLY_FILE_KEY = 'ReadOnly__{TARGET_FILE_KEY}'
+s3_client.copy_object(
+    CopySource=f"/{TARGET_BUCKET}/{TARGET_FILE_KEY}",
+    Bucket=TARGET_BUCKET,
+    Key=TARGET_READONLY_FILE_KEY
+)

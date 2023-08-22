@@ -12,6 +12,7 @@ import json
 
 s3_client = boto3.client('s3')
 
+
 ## @params: [JOB_NAME]
 args = getResolvedOptions(sys.argv, [
     'JOB_NAME',
@@ -26,9 +27,10 @@ job.init(args['JOB_NAME'], args)
 
 TARGET_BUCKET = 'my-table-0821'
 TARGET_FILE_KEY = 'output.parquet'
+TARGET_READONLY_FILE_KEY = 'ReadOnly__{TARGET_FILE_KEY}'
+
 
 logger = glueContext.get_logger()
-
 
 logger.info("args::::" + str(args))
 
@@ -54,17 +56,19 @@ df_new.createTempView('df_new')
 # res = s3_client.list_objects(Bucket=TARGET_BUCKET)
 # if (res.get("Contents", -1) != -1):
 try:
-    df_old = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
-    df_new = df_old.union(df_new)
+    spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}") \
+        .write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
+    df_old = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}")
+    df_write = df_old.union(df_new)
     # logger.info("inside_try::::df_old.count()::::" + str(df_old.count()))
     # logger.info("inside_try::::df_new.count()::::" + str(df_new.count()))
-    df_old = df_new
 except AnalysisException:
     logger.info("first_load::::Continue")
+    df_write = df_new
 
-df_new.show(5) # Execute
+df_write.show(5) # Execute
 logger.info("before_write::::df_new.count()::::" + str(df_new.count()))
-df_new.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}", mode="overwrite", compression="snappy")
+df_write.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}", mode="overwrite", compression="snappy")
 
 
 spark.stop()
