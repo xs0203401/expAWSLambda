@@ -23,7 +23,12 @@ glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
+
+TARGET_BUCKET = 'my-table-0821'
+TARGET_FILE_KEY = 'output.parquet'
+
 logger = glueContext.get_logger()
+
 
 logger.info("args::::" + str(args))
 
@@ -41,26 +46,26 @@ s3_file_path = f"s3a://{bucket_name}/{object_key}"
 df_new = spark.read.csv(s3_file_path, header=True, inferSchema=True)
 
 df_new = df_new.withColumn("language_category", lit(object_key_category))
-df_new = df_new.select([col(col_name) for col_name in df_new.columns if col_name != '_c0'])
 df_new = df_new.withColumn("ingest_datetime", current_timestamp())
-
-target_bucket = 'my-table-0821'
-target_file_key = 'output.parquet'
+df_new = df_new.select([col(col_name) for col_name in df_new.columns if col_name != '_c0'])
+df_new.createTempView('df_new')
 
 # Except existing rows
-# res = s3_client.list_objects(Bucket=target_bucket)
+# res = s3_client.list_objects(Bucket=TARGET_BUCKET)
 # if (res.get("Contents", -1) != -1):
 try:
-    df_old = spark.read.parquet(f"s3a://{target_bucket}/{target_file_key}")
-    df_new = df_new.exceptAll(df_old.select([col(col_name) for col_name in df_new.columns]))
+    df_old = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
     df_new = df_old.union(df_new)
-    logger.info("inside_try::::df_old.count()::::" + str(df_old.count()))
-    logger.info("inside_try::::df_new.count()::::" + str(df_new.count()))
+    # logger.info("inside_try::::df_old.count()::::" + str(df_old.count()))
+    # logger.info("inside_try::::df_new.count()::::" + str(df_new.count()))
+    df_old = df_new
 except AnalysisException:
     logger.info("first_load::::Continue")
-    
-df_new.write.parquet(f"s3a://{target_bucket}/{target_file_key}", mode="overwrite", compression="snappy")
-logger.info("after_write::::df_new.count()::::" + str(df_new.count()))
+
+df_new.show(5) # Execute
+logger.info("before_write::::df_new.count()::::" + str(df_new.count()))
+df_new.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}", mode="overwrite", compression="snappy")
+
 
 spark.stop()
 job.commit()
