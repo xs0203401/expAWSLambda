@@ -46,7 +46,6 @@ TABLE_SCHEMA_LITE = StructType([
     StructField("top_track_link", StringType(), True)
 ])
 
-
 logger = glueContext.get_logger()
 
 logger.info("args::::" + str(args))
@@ -65,6 +64,7 @@ s3_file_path = f"s3a://{bucket_name}/{object_key}"
 df_new = spark.read.csv(s3_file_path, header=True, schema=TABLE_SCHEMA_LITE)
 
 df_new = df_new.withColumn("language_category", lit(object_key_category))
+df_new = df_new.withColumn("ingest_datetime", current_timestamp())
 df_new = df_new.select([col(col_name) for col_name in df_new.columns if col_name != '_c0'])
 df_new.createTempView('df_new')
 
@@ -73,12 +73,10 @@ try:
     df_copy = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
     df_copy.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
     df_old = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}")
-    # df_new = spark.exceptAll(df_old.select([col(col_name) for col_name in df_old.columns if col_name != 'ingest_datetime']))
     df_write = df_old.union(df_new)
 except AnalysisException as e:
     logger.info(str(e))
     logger.info("first_load::::Continue")
-    df_new = df_new.withColumn("ingest_datetime", current_timestamp())
     df_write = df_new
 
 df_write.show(5) # Execute
