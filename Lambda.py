@@ -1,6 +1,7 @@
 import io
 import random
 import logging
+from pyspark.sql.session import SparkSession
 from pyspark.sql.functions import col, lit, current_timestamp
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType, BooleanType
 from pyspark.sql.utils import AnalysisException
@@ -33,6 +34,8 @@ def get_spark():
     return spark
 
 spark = get_spark()
+
+
 
 def create_bucket(bucket_name, region=None):
     """Create an S3 bucket in a specified region
@@ -69,11 +72,16 @@ def create_bucket(bucket_name, region=None):
 ## Local
 # filePath = './data/chinese_top100_artist.csv'
 # df=spark.read.format("csv").option("header","true").load(filePath)
+'''
+- data/chinese_top100_artist.csv
+- data/japanese_top100_artist.csv
+- data/korean_top100_artist.csv
+'''
 
 # # Testing uploding using boto3 s3_client
-file_name = 'data/chinese_top100_artist.csv'
+file_name = 'data/korean_top100_artist.csv'
 bucket = 'csv-ingest-0821'
-object_name = 'chinese_top100_artist.csv'
+object_name = 'korean_top100_artist.csv'
 
 response = s3_client.upload_file(file_name, bucket, object_name)
 print(response)
@@ -118,8 +126,16 @@ df1 = df1.select([col(col_name) for col_name in df1.columns if col_name != '_c0'
 # exceptAll
 df_copy.printSchema()
 df1.printSchema()
-df3 = df1.union(df_copy.select([col(col_name) for col_name in df_copy.columns if col_name != "ingest_datetime"])).distinct()
-df3.where(col("language_category") == 'korean').orderBy('artist_name').show()
+df_all = df_copy.select([col(col_name) for col_name in df_copy.columns if col_name != '_c0' and col_name != "ingest_datetime"])
+df3 = df1.exceptAll(df_all)
+# df3 = df1.union(df_copy.select([col(col_name) for col_name in df_copy.columns if col_name != "ingest_datetime"])).distinct()
+# df3.where(col("language_category") == 'korean').orderBy('artist_name').show()
+
+# ExceptAll - sql
+df_copy.select([col(col_name) for col_name in df_copy.columns if col_name != '_c0' and col_name != "ingest_datetime"]).createTempView("t_all")
+df1.createTempView("t0")
+show = lambda x: spark.sql(x).show(30)
+show("select * from t0 except all select * from t_all")
 
 
 
