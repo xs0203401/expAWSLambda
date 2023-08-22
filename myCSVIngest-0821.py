@@ -27,7 +27,7 @@ job.init(args['JOB_NAME'], args)
 
 TARGET_BUCKET = 'my-table-0821'
 TARGET_FILE_KEY = 'output.parquet'
-TARGET_READONLY_FILE_KEY = 'ReadOnly__{TARGET_FILE_KEY}'
+TARGET_READONLY_FILE_KEY = f'ReadOnly__{TARGET_FILE_KEY}'
 
 
 logger = glueContext.get_logger()
@@ -52,22 +52,19 @@ df_new = df_new.withColumn("ingest_datetime", current_timestamp())
 df_new = df_new.select([col(col_name) for col_name in df_new.columns if col_name != '_c0'])
 df_new.createTempView('df_new')
 
-# Except existing rows
-# res = s3_client.list_objects(Bucket=TARGET_BUCKET)
-# if (res.get("Contents", -1) != -1):
+
 try:
-    spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}") \
-        .write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
+    df_copy = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
+    df_copy.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
     df_old = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}")
     df_write = df_old.union(df_new)
-    # logger.info("inside_try::::df_old.count()::::" + str(df_old.count()))
-    # logger.info("inside_try::::df_new.count()::::" + str(df_new.count()))
-except AnalysisException:
+except AnalysisException as e:
+    logger.info(str(e))
     logger.info("first_load::::Continue")
     df_write = df_new
 
 df_write.show(5) # Execute
-logger.info("before_write::::df_new.count()::::" + str(df_new.count()))
+logger.info("output::::df_write.count()::::" + str(df_write.count()))
 df_write.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}", mode="overwrite", compression="snappy")
 
 

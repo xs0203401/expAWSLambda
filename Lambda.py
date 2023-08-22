@@ -70,9 +70,9 @@ def create_bucket(bucket_name, region=None):
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
 # # Testing uploding using boto3 s3_client
-file_name = 'data/japanese_top100_artist.csv'
+file_name = 'data/korean_top100_artist.csv'
 bucket = 'csv-ingest-0821'
-object_name = 'japanese_top100_artist.csv'
+object_name = 'korean_top100_artist.csv'
 
 response = s3_client.upload_file(file_name, bucket, object_name)
 print(response)
@@ -89,7 +89,7 @@ print(response)
 # Testing reading from spark from s3
 region = 'us-east-2'
 bucket_str = 'csv-ingest-0821'
-key_str = 'japanese_top100_artist.csv'
+key_str = 'korean_top100_artist.csv'
 key_category = key_str.split("_")[0]
 s3_read_path = f"s3a://{bucket_str}/{key_str}"
 # s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
@@ -145,16 +145,20 @@ glue_client.start_job_run(
 
 # Test output file
 s3_location = "s3a://my-table-0821/output.parquet/"
-s3_location_ro = "s3a://my-table-0821/ReadOnly__output.parquet/"
+# s3_location = "s3a://my-table-0821/ReadOnly__output.parquet/"
 df = spark.read.parquet(s3_location, header=True, inferSchema=True)
+df.select(col("language_category")).distinct().show(10)
 
 
 # TEST COPY ReadOnly
 TARGET_BUCKET = 'my-table-0821'
 TARGET_FILE_KEY = 'output.parquet'
-TARGET_READONLY_FILE_KEY = 'ReadOnly__{TARGET_FILE_KEY}'
+TARGET_READONLY_FILE_KEY = f'ReadOnly__{TARGET_FILE_KEY}'
 s3_client.copy_object(
     CopySource=f"/{TARGET_BUCKET}/{TARGET_FILE_KEY}",
     Bucket=TARGET_BUCKET,
     Key=TARGET_READONLY_FILE_KEY
 )
+
+df_copy = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
+df_copy.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
