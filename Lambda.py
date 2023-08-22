@@ -1,9 +1,10 @@
 import io
 import random
 import logging
-from pyspark.sql.session import SparkSession
-from pyspark.sql.types import StructType, StructField, IntegerType, StringType, BooleanType
 from pyspark.sql.functions import col, lit, current_timestamp
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType, BooleanType
+from pyspark.sql.utils import AnalysisException
+
 
 import pandas as pd
 import boto3
@@ -70,9 +71,9 @@ def create_bucket(bucket_name, region=None):
 # df=spark.read.format("csv").option("header","true").load(filePath)
 
 # # Testing uploding using boto3 s3_client
-file_name = 'data/korean_top100_artist.csv'
+file_name = 'data/chinese_top100_artist.csv'
 bucket = 'csv-ingest-0821'
-object_name = 'korean_top100_artist.csv'
+object_name = 'chinese_top100_artist.csv'
 
 response = s3_client.upload_file(file_name, bucket, object_name)
 print(response)
@@ -94,8 +95,33 @@ key_category = key_str.split("_")[0]
 s3_read_path = f"s3a://{bucket_str}/{key_str}"
 # s3_file_path = 's3a://csv-input-20230814/chinese_top100_artist.csv'
 # s3_file_path = "s3a://csv-input-20230814/biostats.csv"
-df1 = spark.read.csv(s3_read_path, header=True, inferSchema=True).withColumn("language_category", lit(key_category)).withColumn("ingest_datetime", current_timestamp())
-df1 = df1.select([col(col_name) for col_name in df1.columns if col_name != '_c0'])
+
+TABLE_SCHEMA_LITE = StructType([
+    StructField("_c0", IntegerType(), True),
+    StructField("artist_name", StringType(), True),
+    StructField("popularity", IntegerType(), True),
+    StructField("followers", IntegerType(), True),
+    StructField("artist_link", StringType(), True),
+    StructField("genres", StringType(), True),
+    StructField("top_track", StringType(), True),
+    StructField("top_track_album", StringType(), True),
+    StructField("top_track_popularity", IntegerType(), True),
+    StructField("top_track_release_date", StringType(), True),
+    StructField("top_track_duration_ms", IntegerType(), True),
+    StructField("top_track_explicit", BooleanType(), True),
+    StructField("top_track_album_link", StringType(), True),
+    StructField("top_track_link", StringType(), True)
+])
+df1 = spark.read.csv(s3_read_path, header=True, schema=TABLE_SCHEMA_LITE).withColumn("language_category", lit(key_category)) # .withColumn("ingest_datetime", current_timestamp())
+df1 = df1.select([col(col_name) for col_name in df1.columns if col_name != '_c0' and col_name != "ingest_datetime"])
+
+# exceptAll
+df_copy.printSchema()
+df1.printSchema()
+df3 = df1.union(df_copy.select([col(col_name) for col_name in df_copy.columns if col_name != "ingest_datetime"])).distinct()
+df3.where(col("language_category") == 'korean').orderBy('artist_name').show()
+
+
 
 
 with open('/Users/henryliu/Temp00/expAWSLambda/test_event_s3_put.json') as f:
@@ -112,53 +138,71 @@ while True:
     if create_bucket(target_bucket, region=region):
         break
 
-# df = df.select([col(col_name).alias(trimmed_name) for col_name, trimmed_name in zip(df.columns, [col_name.strip(' "').replace(' ', '_').replace('(', '_').replace(')','_') for col_name in df.columns])]) # Trimmed column names for "biostats.csv"
-df = df.select([col(col_name) if col_name != '_c0' else col(col_name).alias("row_id") for col_name in df.columns])
-df.write.parquet(f"s3a://{target_bucket}/test_output.parquet", mode="overwrite", compression="snappy")
+# # df = df.select([col(col_name).alias(trimmed_name) for col_name, trimmed_name in zip(df.columns, [col_name.strip(' "').replace(' ', '_').replace('(', '_').replace(')','_') for col_name in df.columns])]) # Trimmed column names for "biostats.csv"
+# df = df.select([col(col_name) if col_name != '_c0' else col(col_name).alias("row_id") for col_name in df.columns])
+# df.write.parquet(f"s3a://{target_bucket}/test_output.parquet", mode="overwrite", compression="snappy")
 
-target_bucket = 'my-table-0821'
-target_file_key = 'output.parquet'
+# target_bucket = 'my-table-0821'
+# target_file_key = 'output.parquet'
 
-df1 = spark.read.parquet(f"s3a://{target_bucket}/test_output.parquet")
-df1.createTempView('test1')
-df2 = spark.sql('select * from test1')
-df1.count()
-df2.union(df1).distinct().count()
-
-
-df = df.limit(25)
-df1 = df1.exceptAll(df)
-df1.count()
-df2.show()
+# df1 = spark.read.parquet(f"s3a://{target_bucket}/test_output.parquet")
+# df1.createTempView('test1')
+# df2 = spark.sql('select * from test1')
+# df1.count()
+# df2.union(df1).distinct().count()
 
 
-
-# Glue
-glue_client = boto3.client('glue')
-glue_client.start_job_run(
-        JobName = 'myCSVIngest-0821',
-         Arguments = {
-           '--new_bucket_name'  :   json.dumps(bkt),
-           '--new_object_key'   :   json.dumps(obj) } )
+# df = df.limit(25)
+# df1 = df1.exceptAll(df)
+# df1.count()
+# df2.show()
 
 
+
+# # Glue start job run
+# glue_client = boto3.client('glue')
+# glue_client.start_job_run(
+#         JobName = 'myCSVIngest-0821',
+#          Arguments = {
+#            '--new_bucket_name'  :   json.dumps(bkt),
+#            '--new_object_key'   :   json.dumps(obj) } )
+
+
+TABLE_SCHEMA = StructType([
+    StructField("artist_name", StringType(), True),
+    StructField("popularity", IntegerType(), True),
+    StructField("followers", IntegerType(), True),
+    StructField("artist_link", StringType(), True),
+    StructField("genres", StringType(), True),
+    StructField("top_track", StringType(), True),
+    StructField("top_track_album", StringType(), True),
+    StructField("top_track_popularity", IntegerType(), True),
+    StructField("top_track_release_date", StringType(), True),
+    StructField("top_track_duration_ms", IntegerType(), True),
+    StructField("top_track_explicit", BooleanType(), True),
+    StructField("top_track_album_link", StringType(), True),
+    StructField("top_track_link", StringType(), True),
+    StructField("language_category", StringType(), True),
+    StructField("ingest_datetime", TimestampType(), True)
+])
 
 # Test output file
 s3_location = "s3a://my-table-0821/output.parquet/"
 # s3_location = "s3a://my-table-0821/ReadOnly__output.parquet/"
-df = spark.read.parquet(s3_location, header=True, inferSchema=True)
-df.select(col("language_category")).distinct().show(10)
+df_copy = spark.read.parquet(s3_location, header=True, inferSchema=True)
+df_copy.select(col("language_category")).distinct().show(10)
+df_copy.show()
 
 
-# TEST COPY ReadOnly
-TARGET_BUCKET = 'my-table-0821'
-TARGET_FILE_KEY = 'output.parquet'
-TARGET_READONLY_FILE_KEY = f'ReadOnly__{TARGET_FILE_KEY}'
-s3_client.copy_object(
-    CopySource=f"/{TARGET_BUCKET}/{TARGET_FILE_KEY}",
-    Bucket=TARGET_BUCKET,
-    Key=TARGET_READONLY_FILE_KEY
-)
+# # TEST COPY ReadOnly
+# TARGET_BUCKET = 'my-table-0821'
+# TARGET_FILE_KEY = 'output.parquet'
+# TARGET_READONLY_FILE_KEY = f'ReadOnly__{TARGET_FILE_KEY}'
+# s3_client.copy_object(
+#     CopySource=f"/{TARGET_BUCKET}/{TARGET_FILE_KEY}",
+#     Bucket=TARGET_BUCKET,
+#     Key=TARGET_READONLY_FILE_KEY
+# )
 
-df_copy = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
-df_copy.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
+# df_copy = spark.read.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_FILE_KEY}")
+# df_copy.write.parquet(f"s3a://{TARGET_BUCKET}/{TARGET_READONLY_FILE_KEY}", mode="overwrite", compression="snappy")
